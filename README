@@ -1,0 +1,26 @@
+Overview
+--------
+GoldMine is a bioinformatics pipeline for identifying the genomic origin of FASTQ reads.  The tool uses Velvet (https://www.ebi.ac.uk/~zerbino/velvet/) to assemble FASTQ reads into contigs, which are then subsequently mapped to a range of reference genomes using Blast (https://blast.ncbi.nlm.nih.gov/Blast.cgi).
+
+Intended Use
+------------
+GoldMine should be used when the genomic origin of a sample is unknown and cannot be reasonably guessed.  This problem is typically encountered when a large proportion of reads do not map to expected (or anticipated) reference genomes and, consequently, the source of the putative contamination needs to be identified.
+
+When GoldMine should not be used
+--------------------------------
+Successfully creating contigs is only possible for small (e.g. bacterial) genomes.  GoldMine will not therefore identify reads derived from large (e.g. human) genomes.  We recommend using FastQ Screen, however, to validate the origin of reads from a pre-specified panel of anticipated reference genomes. 
+
+Output
+------
+GoldMine writes the assembled contigs and Blast results to a folder named [input filename].contigs.  The software produces a graph showing the distribution of %GC content vs coverage for the contigs.  In general, contigs from different genomic sources should cluster together on this plot. 
+
+The script also generates a summary report listing a candidate source or sources of origin of the FASTQ Reads.  GoldMine generates the summary score by processing each mapped contig in turn.  For each contig, the tool extracts the alignments with the lowest Blast E values.  If those alignments are derived from a single species, the GoldMine score of that species is incremented by 1.  The summary file shows the results of processing all the mapped contigs.  
+
+Availability
+------------
+Homepage: https://www.bioinformatics.babraham.ac.uk/projects/goldmine
+Git Repository: https://github.com/StevenWingett/GoldMine.git
+
+GoldMine is distributed with a GNU General Public License (version 3).  
+
+Steven Wingett, The Babraham Institute, Cambridge, UK

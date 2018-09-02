@@ -1,0 +1,227 @@
+#!/usr/bin/perl
+
+###################################################################################
+###################################################################################
+##This file is Copyright (C) 2018, Steven Wingett (steven.wingett@babraham.ac.uk)##
+##                                                                               ##
+##                                                                               ##
+##This file is part of GoldMine.                                                 ##
+##                                                                               ##
+##GoldMine is free software: you can redistribute it and/or modify               ##
+##it under the terms of the GNU General Public License as published by           ##
+##the Free Software Foundation, either version 3 of the License, or              ##
+##(at your option) any later version.                                            ##
+##                                                                               ##
+##GoldMine is distributed in the hope that it will be useful,                    ##
+##but WITHOUT ANY WARRANTY; without even the implied warranty of                 ##
+##MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the                  ##
+##GNU General Public License for more details.                                   ##
+##                                                                               ##
+##You should have received a copy of the GNU General Public License              ##
+##along with GoldMine.  If not, see <http://www.gnu.org/licenses/>.              ##
+###################################################################################
+###################################################################################
+
+
+use strict;
+use warnings;
+use FindBin '$Bin';
+use lib $Bin;
+use Getopt::Long;
+use File::Basename;
+use File::Spec;
+use Cwd;
+
+use Data::Dumper;
+
+my $version = '0.1.0';
+
+
+
+##########################################################
+#Get user-supplied parameters
+#Useful variables
+my %config = (
+    help      => undef,
+    version   => undef
+);
+
+my $config_result = GetOptions(    #Stores parameters
+    "help"       => \$config{help},
+    "version" => \$config{version}
+);
+
+die "Command line options need to be in the correct format (goldmine --help for more details).\n" unless ($config_result);
+
+
+if ( $config{help} ) {
+    print while (<DATA>);
+    exit(0);
+}
+
+if ( $config{version} ){
+	print "GoldMine v$version\n";
+	exit(0);
+}
+
+print "Starting GoldMine\n";
+print "Creating contigs...\n";
+
+unless(@ARGV){
+	warn "Please specify file(s) to process.\n";
+	print while (<DATA>);
+    exit(0);
+}
+
+my @files =  abs_file_paths(deduplicate_array(@ARGV));
+check_files_exist(\@files, 'EXISTS');
+my $cwd = cwd();
+
+print "Processing:\n";
+foreach my $file (@files){
+	print "\t" . basename($file) ."\n";
+	
+	#Run velvet
+	#!system ("mkdir $file");
+	my $outdir = "$file.contigs";
+	my $velveth_command = "velveth $outdir 25 -fastq.gz -short $file";
+	!system($velveth_command) or die "Could not run: '$velveth_command'\n";
+	
+	!system("velvetg $outdir") or die "Could not run: 'velvetg $outdir'\n";
+
+	#Determine coverage and GC
+	my $gc_cov_command = "$Bin/calc_GC_cov.pl $outdir/contigs.fa";
+	!system($gc_cov_command) or die "Could not run: '$gc_cov_command'\n";
+
+	#Create scatter plot
+	print "Creating scatter plot...\n";
+	my $scatter_command = "Rscript $Bin/scatter.r $outdir/contigs.fa.cov_gc.txt";
+	!system($scatter_command) or die "Could not run: '$scatter_command'\n";
+
+	#Blast search the contigs
+	print "Blasting contigs...\n";
+	my $blast_command = "$Bin/web_blast.pl megablast nt $outdir/contigs.fa.blast_contigs.fa > $outdir/blast.txt";
+	!system($blast_command) or die "Could not run: '$blast_command'\n";
+	
+	#Collate results
+	print "Collating results...\n";
+	my $collation_command = "$Bin/collate.pl $outdir";
+	!system($collation_command ) or die "Could not run: '$collation_command'\n";
+
+}
+
+print "Processing Complete\n";
+
+exit (0);
+
+
+
+#################################################################
+#Subroutines
+#################################################################
+
+
+#Sub: deduplicate_array
+#Takes and array and returns the array with duplicates removed
+#(keeping 1 copy of each unique entry).
+sub deduplicate_array{
+	my @array = @_;
+	my %uniques;
+
+	foreach (@array){
+		$uniques{$_} = '';	
+	}
+	my @uniques_array = keys %uniques;
+	return @uniques_array;
+}
+
+
+#Sub: abs_file_paths
+#Takes an array of filenames and returns
+#the array, but with the absolute file paths
+sub abs_file_paths{
+	my @filenames = @_;
+	my @abs_filenames;
+
+	foreach my $filename (@filenames){
+		my $abs_filename = File::Spec->rel2abs($filename);
+		push(@abs_filenames, $abs_filename);
+	}
+	
+	return @abs_filenames;
+}
+
+
+
+###################################################################
+#check_files_exist:
+#Takes a reference to an array containing paths to filenames and verifies they exist
+#Warns of files that do no exit. Returns 1 if all files exist but 0 if this is not
+#the case.
+#
+#Also, takes a second argument:
+#$_[1] should be 'EXISTS' or 'NOT_EXISTS'
+#If 'NOT_EXIST' warns if file already exists.  Returns '1' if none of the
+#files exists and '0' if one or multiple files already exist
+sub check_files_exist {
+    my $files      = $_[0];    #Reference to array
+    my $check_for  = $_[1];
+    my $all_exist  = 1;
+    my $not_exists = 1;
+
+    if ( $check_for eq 'EXISTS' ) {
+        foreach my $file (@$files) {
+            unless ( -e $file ) {
+                warn "File '$file' does not exist\n";
+                $all_exist = 0;
+            }
+        }
+    } elsif ( $check_for eq 'NOT_EXISTS' ) {
+        foreach my $file (@$files) {
+            if ( -e $file ) {
+                warn "File '$file' already exists\n";
+                $not_exists = 0;
+            }
+        }
+    } else {
+        die "Subroutine 'check_files_exist' requires argument 'EXISTS' or 'NOT_EXISTS'.\n";
+    }
+
+    if ( $check_for eq 'EXISTS' ) {
+        return $all_exist;
+    } else {
+        return $not_exists;
+    }
+}
+
+
+
+__DATA__
+
+GoldMine homepage: www.bioinformatics.babraham.ac.uk/projects/goldmine
+
+SYNOPSIS
+
+Pipeline to identify the bacterial species of origin of DNA sequences present in a
+FASTQ file.  The program will also identify the origin of sequences from 
+small non-bacterial genomes.
+
+goldmine [OPTIONS]
+goldmine [FASTQ Files]
+
+FUNCTION
+
+The program generates contigs from FASTQ files using Velvet, and 
+then uses BLAST to identify the probable source of these contigs.
+
+The software requires velveth and R to be in the user's PATH.
+
+COMMAND LINE OPTIONS
+
+--help         Print help message and exit
+--version      Print version and exit
+
+Full instructions on running the pipeline can be found at:
+www.bioinformatics.babraham.ac.uk/projects/GoldMine
+
+Steven Wingett, Babraham Institute, Cambridge, UK (steven.wingett@babraham.ac.uk)
