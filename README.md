@@ -52,7 +52,6 @@ Full documentation for the GoldMine options can be obtained by running:
 
 
 #Availability
-
 [Git Repository](https://github.com/StevenWingett/GoldMine.git)
 
 [Homepage](https://stevenwingett.github.io/GoldMine)
